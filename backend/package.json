@@ -1,0 +1,20 @@
+{
+  "name": "hiveflow-backend",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Local order, inventory, robot-task, and scan-event API for HiveFlow.",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "migrate": "node src/db/migrate.js",
+    "seed": "node src/db/seed.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "dotenv": "^16.6.1",
+    "express": "^5.1.0",
+    "pg": "^8.16.3",
+    "zod": "^4.1.12"
+  }
+}
