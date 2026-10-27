@@ -47,6 +47,26 @@ flutter devices
 flutter run -d <device-id>
 ```
 
+## Deploy the web demo on GitHub Pages
+
+The repository includes a GitHub Actions workflow that tests and builds the
+Flutter web app, then publishes it to:
+
+<https://bythewaysham.github.io/HiveFlow-/>
+
+To enable the first deployment, open the repository's **Settings → Pages** and
+set **Build and deployment → Source** to **GitHub Actions**. Then open
+**Actions → Deploy HiveFlow web demo** and run the workflow, or push a commit to
+`main`. Later pushes to `main` deploy automatically.
+
+GitHub Pages hosts only the Flutter web frontend. The PostgreSQL-backed
+Warehouse Ops features need a separately hosted HTTPS API; the current local
+API has no authentication and must not be exposed to the public internet. Until
+a secured public backend is configured, use the local simulator on the deployed
+site. Once a secured API is available, set the repository Actions variable
+`HIVEFLOW_API_URL` to its HTTPS base address (for example
+`https://api.example.com`) and run the Pages workflow again.
+
 ## What is included
 
 - Responsive operator dashboard for laptop and phone-sized screens.
