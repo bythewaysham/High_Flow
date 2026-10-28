@@ -1,13 +1,20 @@
-# HiveFlow API
+# HiveFlow Backend
 
-The local Node.js and PostgreSQL API stores warehouse sample inventory, orders,
-robot state, assignments, QR scan events, and decision history. It accepts
-simulated robot scans and telemetry; it does not connect to physical robots or
-scanner hardware.
+The backend is a local API for the HiveFlow **Warehouse Ops** screen. It stores
+sample inventory, orders, robot assignments, scan events, and decision history
+in PostgreSQL. The Flutter simulator can be used without the backend.
 
-## Run locally
+This prototype records simulated scans and robot telemetry. It does not connect
+to physical robots, cameras, or scanner hardware.
 
-Requirements: Node.js 20+ and a running PostgreSQL server.
+## Requirements
+
+- Node.js 20 or later
+- PostgreSQL
+
+## Set up and run
+
+From the project root:
 
 ```sh
 cd backend
@@ -19,70 +26,63 @@ npm run seed
 npm run dev
 ```
 
-By default the API listens on port `3000` on the laptop's network interfaces.
-The API has no authentication and uses HTTP for this hardware-free prototype:
-use it only on a trusted private network and never expose it to the public
-internet. If PostgreSQL requires credentials, set `DATABASE_URL` in
-`backend/.env`.
-Browser requests are allowed from the same hostname as the API by default. To
-use a different hostname for a local web demo, set `CORS_ORIGIN` in
-`backend/.env` to that exact origin.
+The API starts on port `3000`. If your PostgreSQL setup needs different
+credentials or a different address, update `DATABASE_URL` in `backend/.env`.
+Use `npm start` to run the API without the development file watcher.
 
-The Flutter app defaults to `http://127.0.0.1:3000` on laptop/web builds and
-`http://10.0.2.2:3000` in the Android emulator. For a physical phone, connect
-the phone and laptop to the same Wi-Fi and enter the laptop's local IPv4 address
-in **Warehouse Ops** (for example `http://192.168.1.5:3000`). On macOS, find it
-in System Settings → Wi-Fi → Details, or run `ipconfig getifaddr en0`.
+## Connect the Flutter app
 
-## API workflow
+On the same computer, Warehouse Ops uses `http://127.0.0.1:3000` by default.
+An Android emulator uses `http://10.0.2.2:3000`.
 
-1. `GET /api/inventory` lists products, stock counts, warehouse bin coordinates,
-   and the QR/barcode value expected from a scanner.
-2. `POST /api/orders` creates an order from known product SKUs.
-3. `POST /api/dispatch` uses the Hungarian assignment method to assign queued
-   orders to available robots using pick-bin travel distance, battery, and rush
-   priority.
-4. `POST /api/scans` accepts a robot ID, product scan code, scan type (`pick` or
-   `deliver`), and a unique event UUID. Pick scans decrement inventory and
-   advance order progress. Delivery scans complete item quantities and release
-   the robot when the entire order is delivered. Repeating an event UUID is
-   idempotent.
-5. `GET /api/orders`, `GET /api/robots`, `GET /api/decisions`, and
-   `GET /api/orders/:id/history` show the stored operational state and audit
-   trail.
+For a physical phone, connect it and the computer running the API to the same
+Wi-Fi network. In Warehouse Ops, enter the computer's local IP address, for
+example `http://192.168.1.5:3000`. On macOS, find the address in **System
+Settings → Wi-Fi → Details**, or run:
 
-## Endpoint reference
+```sh
+ipconfig getifaddr en0
+```
+
+Web requests from the same hostname are allowed by default. To allow a
+different web origin, set `CORS_ORIGIN` in `backend/.env` to that origin.
+
+## API
 
 | Method | Endpoint | Purpose |
 |---|---|---|
-| `GET` | `/api/health` | API and PostgreSQL readiness |
-| `GET` | `/api/summary` | Order, robot, inventory, and scan counters |
-| `GET` | `/api/inventory` | List stock, product scan codes, and warehouse bins |
-| `POST` | `/api/inventory` | Add a product to the catalog |
-| `GET` | `/api/robots` | Current robot state and assigned task |
-| `POST` | `/api/robots/:id/telemetry` | Save position, battery, and robot status |
-| `GET` | `/api/orders` | List orders; optionally filter with `?status=completed` |
-| `POST` | `/api/orders` | Create and queue an order |
-| `GET` | `/api/orders/:id` | Read order and scanned item progress |
+| `GET` | `/api/health` | Check API and database readiness |
+| `GET` | `/api/summary` | Get order, robot, inventory, and scan counts |
+| `GET`, `POST` | `/api/inventory` | View inventory or add a product |
+| `GET` | `/api/robots` | View robot status and assignments |
+| `POST` | `/api/robots/:id/telemetry` | Update a robot's position, battery, and status |
+| `GET`, `POST` | `/api/orders` | View orders or create an order |
+| `GET` | `/api/orders/:id` | View order details and item progress |
 | `POST` | `/api/orders/:id/cancel` | Cancel an order before assignment |
 | `POST` | `/api/dispatch` | Assign queued orders to available robots |
-| `GET` | `/api/tasks` | List assignments; optionally filter with `?status=picking` |
-| `POST` | `/api/scans` | Record an idempotent item pick or delivery scan |
-| `GET` | `/api/orders/:id/history` | Read order scans and decisions |
-| `GET` | `/api/decisions` | Read recent assignment/order/scan audit events |
+| `GET` | `/api/tasks` | View robot tasks |
+| `POST` | `/api/scans` | Record a simulated pick or delivery scan |
+| `GET` | `/api/orders/:id/history` | View an order's scans and decisions |
+| `GET` | `/api/decisions` | View recent operational events |
 
-Example:
+Dispatch considers travel distance, battery level, and rush priority. Scan
+requests use a unique event ID so retrying the same request does not apply the
+scan twice.
+
+Example requests:
 
 ```sh
 curl http://127.0.0.1:3000/api/health
 curl http://127.0.0.1:3000/api/inventory
+
 curl -X POST http://127.0.0.1:3000/api/orders \
   -H 'Content-Type: application/json' \
   -d '{"customerRef":"DEMO-1","items":[{"sku":"SKU-BOLT-01","quantity":1}]}'
+
 curl -X POST http://127.0.0.1:3000/api/dispatch
 ```
 
-Use the returned order ID and assigned robot ID when sending a QR scan:
+Use the order and robot IDs returned by the API to submit a scan:
 
 ```sh
 curl -X POST http://127.0.0.1:3000/api/scans \
@@ -90,12 +90,12 @@ curl -X POST http://127.0.0.1:3000/api/scans \
   -d '{"eventId":"00000000-0000-4000-8000-000000000001","robotId":"R-01","scanCode":"HF-BOLT-001","scanType":"pick"}'
 ```
 
-The Flutter **Warehouse Ops** screen reads the summary, inventory, orders,
-robots, and decision feed from this API. It can create orders, dispatch queued
-orders, and send simulated pick/delivery QR events. No camera, physical scanner,
-or real robot is connected yet.
+## Security
 
-## Verify
+The local API uses HTTP and has no authentication. Run it only on a trusted
+private network; do not expose it directly to the public internet.
+
+## Tests
 
 ```sh
 npm test
